@@ -91,46 +91,32 @@ void train(){
 
 void linalg_benchmark(){
     using namespace GP::linalg;
-    GP::matrix A{randn(100, 100)}, B{randn(300, 300)}, C{randn(1000, 1000)};
+    std::vector<GP::matrix> mats;
+    size_t size_list[] = {100, 300, 1000};
+    for(auto s : size_list)
+        mats.emplace_back(randn(s, s));
     int repeat = 5;
 
     auto start = std::chrono::high_resolution_clock::now();
     std::cout << "[matmul] Repeat " << repeat <<" times \n";
-    std::cout << "A 100x100 - ";
-    for(int i = 0; i < repeat; ++i)
-        A ^= A;
-    start = print_time_spent(start);
-
-    std::cout << "B 300x300 - ";
-    for(int i = 0; i < repeat; ++i)
-        B ^= B;
-    start = print_time_spent(start);
-    
-    std::cout << "C 1000x1000 - ";
-    for(int i = 0; i < repeat; ++i)
-        C ^= C;
-    start = print_time_spent(start);
-
+    for(auto& mat : mats){
+        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        for(int i = 0; i < repeat; ++i)
+            mat ^= mat;
+        start = print_time_spent(start);
+    }
     std::cout << "[inv] Repeat " << repeat <<" times \n";
-        std::cout << "A 100x100 - ";
-    for(int i = 0; i < repeat; ++i)
-        A = ~A;
-    start = print_time_spent(start);
-
-    std::cout << "B 300x300 - ";
-    for(int i = 0; i < repeat; ++i)
-        B = ~B;
-    start = print_time_spent(start);
-    
-    std::cout << "C 1000x1000 - ";
-    for(int i = 0; i < repeat; ++i)
-        C = ~C;
-    start = print_time_spent(start);
+    for(auto& mat : mats){
+        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        for(int i = 0; i < repeat; ++i)
+            mat = ~mat;
+        start = print_time_spent(start);
+    }
 }
 
 int main(int argc, const char* argv[]){
     using namespace GP::linalg;
-    train();
-    // linalg_benchmark();
+    // train();
+    linalg_benchmark();
     return 0;
 }
