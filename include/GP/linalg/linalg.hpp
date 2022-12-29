@@ -17,14 +17,15 @@ matrix identity(size_t n){
 }
 
 
-matrix randn(size_t r, size_t c = 1){
+matrix randn(size_t row, size_t col = 1){
     static std::mt19937 gen(time(nullptr));
     std::normal_distribution<double> dis;
-    matrix res{r, c};
-    auto n = res.size();
+    matrix res{row, col};
     auto res_ptr = res.ptr();
-    for(size_t idx = 0; idx < n; ++idx)
-        res_ptr[idx] = dis(gen);
+    auto pad_col = res.pad_column();
+    for(size_t r = 0; r < row; ++ r)
+        for(size_t c = 0; c < col; ++ c)
+            res_ptr[r*pad_col + c] = dis(gen);
     return res;
 }
 
@@ -65,13 +66,14 @@ matrix inv_impl(matrix& mat){
         throw matrix::DimensionalityException();
     }
     size_t n = row_;
+    size_t n_pad = mat.pad_column();
     auto inv_mat = identity(n);
     double* self_ptr = mat.ptr();
     double* inv_ptr = inv_mat.ptr();
     for(size_t iter = 0; iter < n; ++iter){
         // divide #iter row by matrix(iter, iter)
-        auto self_start_iter = self_ptr + iter*n;
-        auto inv_start_iter = inv_ptr + iter*n;
+        auto self_start_iter = self_ptr + iter*n_pad;
+        auto inv_start_iter = inv_ptr + iter*n_pad;
         {
             double val = mat(iter, iter);
             for(size_t c = 0; c < n; ++c)
@@ -81,8 +83,8 @@ matrix inv_impl(matrix& mat){
         // row sub
         for(size_t r = 0; r < n; ++r){
             if(r == iter) continue;
-            auto self_start_r = self_ptr + r*n;
-            auto inv_start_r = inv_ptr + r*n;
+            auto self_start_r = self_ptr + r*n_pad;
+            auto inv_start_r = inv_ptr + r*n_pad;
             double ratio = mat(r, iter);
             for(size_t c = iter; c < n; ++c){
                 self_start_r[c] -= self_start_iter[c] * ratio;
@@ -114,8 +116,9 @@ matrix matmul(const matrix& a, const matrix& _b){
     }
     auto b = transpose(_b);
     const size_t cache_size = MY_GP_CACHE_LINESIZE / sizeof(double);
-    auto row = lrow, col = rcol;
-    matrix res{row, rcol};
+    auto row = lrow, col = rcol, pad_inter_col = a.pad_column();
+    matrix res{row, col};
+    auto res_pad_col = res.pad_column();
 
     // things go lil bit nasty
     double* a_ptr = a.ptr();
@@ -131,9 +134,9 @@ matrix matmul(const matrix& a, const matrix& _b){
                     for(size_t c_tile = c; c_tile < c_max; ++ c_tile){
                         double sum{};
                         for(size_t k_tile = k; k_tile < k_max; ++ k_tile)
-                            sum += a_ptr[r_tile*lcol + k_tile] *
-                                b_ptr[c_tile*lcol + k_tile];
-                        res_ptr[r_tile*col + c_tile] += sum;
+                            sum += a_ptr[r_tile*pad_inter_col + k_tile] *
+                                b_ptr[c_tile*pad_inter_col + k_tile];
+                        res_ptr[r_tile*res_pad_col + c_tile] += sum;
                     }
                 }
             }

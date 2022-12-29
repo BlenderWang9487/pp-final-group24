@@ -114,9 +114,22 @@ void linalg_benchmark(){
     }
 }
 
+void valid_matmul(){
+    using namespace GP::linalg;
+    auto mat = randn(10, 10);
+    auto idt = identity(10);
+    auto mat_inv = ~mat;
+    std::cout << "mat @ inv_mat\n" << (mat ^ mat_inv);
+    std::cout << "idt * 2\n" << (idt * 2.);
+    std::cout << "idt + 2\n" << (idt + 2.);
+    std::cout << "idt - 2\n" << (idt - 2.);
+    std::cout << "pad col " << idt.pad_column() << ", " << mat.pad_column() << '\n';
+}
+
 int main(int argc, const char* argv[]){
     using namespace GP::linalg;
     // train();
-    linalg_benchmark();
+    // linalg_benchmark();
+    valid_matmul();
     return 0;
 }

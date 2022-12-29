@@ -8,18 +8,16 @@ namespace utils{
 double sum(const matrix& m){
     double* m_ptr = m.ptr();
     auto && [row, col] = m.shape();
-    auto n = row*col;
+    auto pad_col = m.pad_column();
     double s{};
-    for(size_t idx = 0; idx < n; ++idx)
-        s += m_ptr[idx];
+    for(size_t r = 0; r < row; ++ r)
+        for(size_t c = 0; c < col; ++ c)
+            s += m_ptr[r*pad_col + c];
     return s;
 }
 
 double mean(const matrix& m){
-    double s{sum(m)};
-    auto && [row, col] = m.shape();
-    auto n = m.size();
-    return s / n;
+    return sum(m) / m.size();
 }
 
 }
