@@ -16,33 +16,32 @@ auto print_time_spent(std::chrono::high_resolution_clock::time_point start_time)
     return end_time;
 }
 
-template<class T>
-auto statistic(GP::matrix<T>& m){
+auto statistic(GP::matrix& m){
     auto&& [row, col] = m.shape();
 
     // mean
-    GP::matrix<T> mu{1, col};
+    GP::matrix mu{1, col};
     for(size_t r = 0; r < row; ++ r)
         for(size_t c = 0; c < col; ++ c)
             mu(0, c) += m(r, c);
-    mu *= T{1./row};
+    mu *= double{1./row};
     
     // var
-    GP::matrix<T> stdv{1, col};
+    GP::matrix stdv{1, col};
     for(size_t r = 0; r < row; ++ r)
         for(size_t c = 0; c < col; ++ c){
             auto dif = (m(r, c) - mu(0, c));
             stdv(0, c) += dif*dif;
         }
-    stdv *= T{1./row};
+    stdv *= double{1./row};
     for(size_t c = 0; c < col; ++ c){
         stdv(0, c) = sqrt(stdv(0, c));
     }
-    return std::pair<GP::matrix<T>, GP::matrix<T>>{mu, stdv};
+    return std::pair<GP::matrix, GP::matrix>{mu, stdv};
 }
 
-template<class T>
-void preprocess(GP::matrix<T>& m, const GP::matrix<T>& mu, GP::matrix<T>& stdv){
+
+void preprocess(GP::matrix& m, const GP::matrix& mu, GP::matrix& stdv){
     auto&& [row, col] = m.shape();
     for(size_t r = 0; r < row; ++ r)
         for(size_t c = 0; c < col; ++ c)
@@ -51,8 +50,8 @@ void preprocess(GP::matrix<T>& m, const GP::matrix<T>& mu, GP::matrix<T>& stdv){
 
 void train(){
     using namespace GP::linalg;
-    GP::Matrix X, X_test;
-    GP::Matrix Y, Y_test;
+    GP::matrix X, X_test;
+    GP::matrix Y, Y_test;
     std::cin >> X >> Y;
     std::cin >> X_test >> Y_test;
 
@@ -82,7 +81,7 @@ void train(){
         auto diff = (mu - Y_test);
         std::cout << "MSE: " << (transpose(diff) ^ diff) * (1./diff.size())<<"\n";
 
-        auto compare = GP::Matrix{Y_test.size(), 2};
+        auto compare = GP::matrix{Y_test.size(), 2};
         for(size_t idx = 0; idx < Y_test.size(); ++idx){
             compare(idx, 0) = mu(idx, 0);
             compare(idx, 1) = Y_test(idx, 0);
@@ -92,7 +91,7 @@ void train(){
 
 void linalg_benchmark(){
     using namespace GP::linalg;
-    GP::Matrix A{randn<double>(100, 100)}, B{randn<double>(300, 300)}, C{randn<double>(1000, 1000)};
+    GP::matrix A{randn(100, 100)}, B{randn(300, 300)}, C{randn(1000, 1000)};
     int repeat = 5;
 
     auto start = std::chrono::high_resolution_clock::now();
@@ -131,7 +130,7 @@ void linalg_benchmark(){
 
 int main(int argc, const char* argv[]){
     using namespace GP::linalg;
-    // train();
-    linalg_benchmark();
+    train();
+    // linalg_benchmark();
     return 0;
 }
