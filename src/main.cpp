@@ -122,14 +122,22 @@ void valid_matmul(){
     std::cout << "mat @ inv_mat\n" << (mat ^ mat_inv);
     std::cout << "idt * 2\n" << (idt * 2.);
     std::cout << "idt + 2\n" << (idt + 2.);
-    std::cout << "idt - 2\n" << (idt - 2.);
+    std::cout << "(idt - 2.) * 4 - 2\n" << (idt - 2.) * 4 - 2;
     std::cout << "pad col " << idt.pad_column() << ", " << mat.pad_column() << '\n';
 }
 
 int main(int argc, const char* argv[]){
     using namespace GP::linalg;
-    // train();
+    train();
     // linalg_benchmark();
-    valid_matmul();
+    // valid_matmul();
+    // GP::matrix a, b;
+    // std::cin >> a >> b;
+    // std::cout << "a:\n" << a;
+    // std::cout << "b:\n" << b;
+    // GP::GPRegression model{0.01, 2.0};
+    // model.fit(a, b);
+    // auto&& [m, v] = model.predict(a);
+    // std::cout << "m:\n" << m << "v:\n" << v;
     return 0;
 }
