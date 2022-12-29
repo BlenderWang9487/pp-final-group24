@@ -132,27 +132,40 @@ void valid_matmul(){
     std::cout << "pad col " << idt.pad_column() << ", " << mat.pad_column() << '\n';
 }
 
-void matmul_bencgmark(){
+void matmul_benchmark(){
     using namespace GP::linalg;
     std::vector<GP::matrix> mats;
-    size_t size_list[] = {1000};
+    size_t size_list[] = {1500};
     for(auto s : size_list)
         mats.emplace_back(randn(s, s));
     int repeat = 5;
 
     auto start = std::chrono::high_resolution_clock::now();
-    std::cout << "[matmul] Repeat " << repeat <<" times \n";
+    std::cout << "[matmul simd] Repeat " << repeat <<" times \n";
     for(auto& mat : mats){
         std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        auto cpy = mat;
+        start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < repeat; ++i)
-            mat = matmul(mat, mat);
+            cpy = matmul_simd(cpy, cpy);
         start = print_time_spent(start);
     }
     std::cout << "[matmul naive] Repeat " << repeat <<" times \n";
     for(auto& mat : mats){
         std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        auto cpy = mat;
+        start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < repeat; ++i)
-            mat = matmul_naive(mat, mat);
+            cpy = matmul_naive(cpy, cpy);
+        start = print_time_spent(start);
+    }
+    std::cout << "[matmul tile] Repeat " << repeat <<" times \n";
+    for(auto& mat : mats){
+        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        auto cpy = mat;
+        start = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < repeat; ++i)
+            cpy = matmul_tile(cpy, cpy);
         start = print_time_spent(start);
     }
 }
@@ -170,6 +183,6 @@ int main(int argc, const char* argv[]){
     model.fit(a, b);
     auto&& [m, v] = model.predict(a);
     std::cout << "m:\n" << m << "v:\n" << v;
-
+    matmul_benchmark();
     return 0;
 }

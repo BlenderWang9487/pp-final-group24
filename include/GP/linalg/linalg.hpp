@@ -3,11 +3,12 @@
 #include <random>
 #include <unistd.h>
 #include <immintrin.h>
+#include <omp.h>
 namespace GP{
 
 namespace linalg{
 
-const size_t MY_GP_CACHE_LINESIZE = 64;
+const size_t MY_GP_CACHE_LINESIZE = 256;
 matrix matmul_tile(const matrix&, const matrix&);
 matrix matmul_naive(const matrix&, const matrix&);
 matrix matmul_simd(const matrix&, const matrix&);
@@ -128,6 +129,7 @@ matrix matmul_tile(const matrix& a, const matrix& _b){
     double* a_ptr = a.ptr();
     double* b_ptr = b.ptr();
     double* res_ptr = res.ptr();
+    #pragma omp parallel for schedule(dynamic, 2) num_threads(8)
     for(size_t r = 0; r < row; r += cache_size){
         size_t r_max = std::min(r + cache_size, row);
         for(size_t c = 0; c < col; c += cache_size){
@@ -165,6 +167,7 @@ matrix matmul_naive(const matrix& a, const matrix& _b){
     double* a_ptr = a.ptr();
     double* b_ptr = b.ptr();
     double* res_ptr = res.ptr();
+    #pragma omp parallel for schedule(dynamic, 2) num_threads(8)
     for(size_t r = 0; r < row; ++r){
         for(size_t c = 0; c < col; ++c){
             double sum{};
@@ -175,7 +178,15 @@ matrix matmul_naive(const matrix& a, const matrix& _b){
     }
     return res;
 }
+inline
+double hsum_double_avx(__m256d v) {
+    __m128d vlow  = _mm256_castpd256_pd128(v);
+    __m128d vhigh = _mm256_extractf128_pd(v, 1); // high 128
+            vlow  = _mm_add_pd(vlow, vhigh);     // reduce down to 128
 
+    __m128d high64 = _mm_unpackhi_pd(vlow, vlow);
+    return  _mm_cvtsd_f64(_mm_add_sd(vlow, high64));  // reduce to scalar
+}
 // matrix matmul_simd(const matrix& a, const matrix& _b){
 matrix matmul_simd(const matrix& a, const matrix& _b){
     auto&& [lrow, lcol] = a.shape();
@@ -195,7 +206,8 @@ matrix matmul_simd(const matrix& a, const matrix& _b){
     double* res_ptr = res.ptr();
     __m128d _upper;
     __m128d _lower;
-    double sum[2];
+    double sum;
+    #pragma omp parallel for schedule(dynamic, 2) num_threads(8)
     for(size_t r = 0; r < row; r += cache_size){
         size_t r_max = std::min(r + cache_size, row);
         for(size_t c = 0; c < col; c += cache_size){
@@ -208,25 +220,51 @@ matrix matmul_simd(const matrix& a, const matrix& _b){
                     for(size_t c_tile = c; c_tile < c_max; ++ c_tile){
                         auto b_start = b_ptr + c_tile*pad_inter_col;
                         if(n == cache_size){
-                            auto sum1 = _mm256_hadd_pd(
-                                _mm256_mul_pd(
-                                    _mm256_load_pd(a_start), _mm256_load_pd(b_start)
+                            auto sum1 =
+                            _mm256_hadd_pd(
+                            _mm256_hadd_pd(
+                                _mm256_hadd_pd(
+                                    _mm256_mul_pd(
+                                        _mm256_load_pd(a_start), _mm256_load_pd(b_start)
+                                    ),
+                                    _mm256_mul_pd(
+                                        _mm256_load_pd(a_start+4), _mm256_load_pd(b_start+4)
+                                    )
                                 ),
-                                _mm256_mul_pd(
-                                    _mm256_load_pd(a_start+4), _mm256_load_pd(b_start+4)
+                                _mm256_hadd_pd(
+                                    _mm256_mul_pd(
+                                        _mm256_load_pd(a_start+8), _mm256_load_pd(b_start+8)
+                                    ),
+                                    _mm256_mul_pd(
+                                        _mm256_load_pd(a_start+12), _mm256_load_pd(b_start+12)
+                                    )
                                 )
-                            );
-                            sum1 = _mm256_hadd_pd(sum1, sum1);
-                            _upper = _mm256_extractf128_pd(sum1, 0);
-                            _lower = _mm256_extractf128_pd(sum1, 1);
-                            _mm_store1_pd(sum, _upper);
-                            _mm_store1_pd(sum+1, _lower);
+                            ),
+                            _mm256_hadd_pd(
+                                _mm256_hadd_pd(
+                                    _mm256_mul_pd(
+                                        _mm256_load_pd(a_start+16), _mm256_load_pd(b_start+16)
+                                    ),
+                                    _mm256_mul_pd(
+                                        _mm256_load_pd(a_start+20), _mm256_load_pd(b_start+20)
+                                    )
+                                ),
+                                _mm256_hadd_pd(
+                                    _mm256_mul_pd(
+                                        _mm256_load_pd(a_start+24), _mm256_load_pd(b_start+24)
+                                    ),
+                                    _mm256_mul_pd(
+                                        _mm256_load_pd(a_start+28), _mm256_load_pd(b_start+28)
+                                    )
+                                )
+                            ));
+                            sum = hsum_double_avx(sum1);
                         }else{
-                            sum[0] = 0., sum[1] = 0.;
+                            sum = 0.;
                             for(size_t k_tile = k; k_tile < k_max; ++ k_tile)
-                                *sum += a_start[k_tile] * b_start[k_tile];
+                                sum += a_start[k_tile] * b_start[k_tile];
                         }
-                        res_ptr[r_tile*res_pad_col + c_tile] += sum[0] + sum[1];
+                        res_ptr[r_tile*res_pad_col + c_tile] += sum;
                     }
                 }
             }
