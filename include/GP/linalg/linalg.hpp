@@ -129,7 +129,7 @@ matrix matmul_tile(const matrix& a, const matrix& _b){
     double* a_ptr = a.ptr();
     double* b_ptr = b.ptr();
     double* res_ptr = res.ptr();
-    #pragma omp parallel for schedule(dynamic, 2) num_threads(8)
+    // #pragma omp parallel for num_threads(8)
     for(size_t r = 0; r < row; r += cache_size){
         size_t r_max = std::min(r + cache_size, row);
         for(size_t c = 0; c < col; c += cache_size){
@@ -167,7 +167,7 @@ matrix matmul_naive(const matrix& a, const matrix& _b){
     double* a_ptr = a.ptr();
     double* b_ptr = b.ptr();
     double* res_ptr = res.ptr();
-    #pragma omp parallel for schedule(dynamic, 2) num_threads(8)
+    // #pragma omp parallel for num_threads(8)
     for(size_t r = 0; r < row; ++r){
         for(size_t c = 0; c < col; ++c){
             double sum{};
@@ -187,7 +187,6 @@ double hsum_double_avx(__m256d v) {
     __m128d high64 = _mm_unpackhi_pd(vlow, vlow);
     return  _mm_cvtsd_f64(_mm_add_sd(vlow, high64));  // reduce to scalar
 }
-// matrix matmul_simd(const matrix& a, const matrix& _b){
 matrix matmul_simd(const matrix& a, const matrix& _b){
     auto&& [lrow, lcol] = a.shape();
     auto&& [rrow, rcol] = _b.shape();
@@ -204,10 +203,8 @@ matrix matmul_simd(const matrix& a, const matrix& _b){
     double* a_ptr = a.ptr();
     double* b_ptr = b.ptr();
     double* res_ptr = res.ptr();
-    __m128d _upper;
-    __m128d _lower;
     double sum;
-    #pragma omp parallel for schedule(dynamic, 2) num_threads(8)
+    // #pragma omp parallel for num_threads(8)
     for(size_t r = 0; r < row; r += cache_size){
         size_t r_max = std::min(r + cache_size, row);
         for(size_t c = 0; c < col; c += cache_size){
@@ -216,9 +213,9 @@ matrix matmul_simd(const matrix& a, const matrix& _b){
                 size_t k_max = std::min(k + cache_size, lcol);
                 size_t n = k_max - k;
                 for(size_t r_tile = r; r_tile < r_max; ++ r_tile){
-                    auto a_start  = a_ptr + r_tile*pad_inter_col;
+                    auto a_start = a_ptr + r_tile*pad_inter_col + k;
                     for(size_t c_tile = c; c_tile < c_max; ++ c_tile){
-                        auto b_start = b_ptr + c_tile*pad_inter_col;
+                        auto b_start = b_ptr + c_tile*pad_inter_col + k;
                         if(n == cache_size){
                             auto sum1 =
                             _mm256_hadd_pd(
@@ -261,7 +258,7 @@ matrix matmul_simd(const matrix& a, const matrix& _b){
                             sum = hsum_double_avx(sum1);
                         }else{
                             sum = 0.;
-                            for(size_t k_tile = k; k_tile < k_max; ++ k_tile)
+                            for(size_t k_tile = 0; k_tile < n; ++ k_tile)
                                 sum += a_start[k_tile] * b_start[k_tile];
                         }
                         res_ptr[r_tile*res_pad_col + c_tile] += sum;

@@ -15,11 +15,11 @@ private:
     size_t row_;
     size_t col_;
     size_t pad_col_;
-    static constexpr const size_t simd_len = 4;
     static inline size_t aligned_size(size_t s){
         return (s + (simd_len-1))/simd_len*simd_len;
     }
 public:
+    static constexpr const size_t simd_len = 4;
     static size_t copy_count;
     struct DeleteAligned
     {
