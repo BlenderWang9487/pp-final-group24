@@ -2,12 +2,16 @@
 #include <matrix/matrix.hpp>
 #include <random>
 #include <unistd.h>
+#include <immintrin.h>
 namespace GP{
 
 namespace linalg{
 
 const size_t MY_GP_CACHE_LINESIZE = 64;
-
+matrix matmul_tile(const matrix&, const matrix&);
+matrix matmul_naive(const matrix&, const matrix&);
+matrix matmul_simd(const matrix&, const matrix&);
+auto matmul = matmul_simd;
 
 matrix identity(size_t n){
     matrix res{n};
@@ -108,7 +112,7 @@ matrix inv(matrix& m){
 }
 
 
-matrix matmul(const matrix& a, const matrix& _b){
+matrix matmul_tile(const matrix& a, const matrix& _b){
     auto&& [lrow, lcol] = a.shape();
     auto&& [rrow, rcol] = _b.shape();
     if(lcol != rrow){
@@ -131,11 +135,12 @@ matrix matmul(const matrix& a, const matrix& _b){
             for(size_t k = 0; k < lcol; k += cache_size){
                 size_t k_max = std::min(k + cache_size, lcol);
                 for(size_t r_tile = r; r_tile < r_max; ++ r_tile){
+                    auto a_start  = a_ptr + r_tile*pad_inter_col;
                     for(size_t c_tile = c; c_tile < c_max; ++ c_tile){
+                        auto b_start = b_ptr + c_tile*pad_inter_col;
                         double sum{};
                         for(size_t k_tile = k; k_tile < k_max; ++ k_tile)
-                            sum += a_ptr[r_tile*pad_inter_col + k_tile] *
-                                b_ptr[c_tile*pad_inter_col + k_tile];
+                            sum += a_start[k_tile] * b_start[k_tile];
                         res_ptr[r_tile*res_pad_col + c_tile] += sum;
                     }
                 }
@@ -144,7 +149,91 @@ matrix matmul(const matrix& a, const matrix& _b){
     }
     return res;
 }
+matrix matmul_naive(const matrix& a, const matrix& _b){
+    auto&& [lrow, lcol] = a.shape();
+    auto&& [rrow, rcol] = _b.shape();
+    if(lcol != rrow){
+        throw matrix::DimensionalityException();
+    }
+    auto b = transpose(_b);
+    const size_t cache_size = MY_GP_CACHE_LINESIZE / sizeof(double);
+    auto row = lrow, col = rcol, pad_inter_col = a.pad_column(), pad_b = b.pad_column();
+    matrix res{row, col};
+    auto res_pad_col = res.pad_column();
 
+    // things go lil bit nasty
+    double* a_ptr = a.ptr();
+    double* b_ptr = b.ptr();
+    double* res_ptr = res.ptr();
+    for(size_t r = 0; r < row; ++r){
+        for(size_t c = 0; c < col; ++c){
+            double sum{};
+            for(size_t k = 0; k < lcol; ++k)
+                sum += a_ptr[r*pad_inter_col + k] * b_ptr[c*pad_inter_col + k];
+            res_ptr[r*res_pad_col + c] = sum;
+        }
+    }
+    return res;
+}
+
+// matrix matmul_simd(const matrix& a, const matrix& _b){
+matrix matmul_simd(const matrix& a, const matrix& _b){
+    auto&& [lrow, lcol] = a.shape();
+    auto&& [rrow, rcol] = _b.shape();
+    if(lcol != rrow){
+        throw matrix::DimensionalityException();
+    }
+    auto b = transpose(_b);
+    const size_t cache_size = MY_GP_CACHE_LINESIZE / sizeof(double);
+    auto row = lrow, col = rcol, pad_inter_col = a.pad_column();
+    matrix res{row, col};
+    auto res_pad_col = res.pad_column();
+
+    // things go lil bit nasty
+    double* a_ptr = a.ptr();
+    double* b_ptr = b.ptr();
+    double* res_ptr = res.ptr();
+    __m128d _upper;
+    __m128d _lower;
+    double sum[2];
+    for(size_t r = 0; r < row; r += cache_size){
+        size_t r_max = std::min(r + cache_size, row);
+        for(size_t c = 0; c < col; c += cache_size){
+            size_t c_max = std::min(c + cache_size, col);
+            for(size_t k = 0; k < lcol; k += cache_size){
+                size_t k_max = std::min(k + cache_size, lcol);
+                size_t n = k_max - k;
+                for(size_t r_tile = r; r_tile < r_max; ++ r_tile){
+                    auto a_start  = a_ptr + r_tile*pad_inter_col;
+                    for(size_t c_tile = c; c_tile < c_max; ++ c_tile){
+                        auto b_start = b_ptr + c_tile*pad_inter_col;
+                        if(n == cache_size){
+                            auto sum1 = _mm256_hadd_pd(
+                                _mm256_mul_pd(
+                                    _mm256_load_pd(a_start), _mm256_load_pd(b_start)
+                                ),
+                                _mm256_mul_pd(
+                                    _mm256_load_pd(a_start+4), _mm256_load_pd(b_start+4)
+                                )
+                            );
+                            sum1 = _mm256_hadd_pd(sum1, sum1);
+                            _upper = _mm256_extractf128_pd(sum1, 0);
+                            _lower = _mm256_extractf128_pd(sum1, 1);
+                            _mm_store1_pd(sum, _upper);
+                            _mm_store1_pd(sum+1, _lower);
+                        }else{
+                            sum[0] = 0., sum[1] = 0.;
+                            for(size_t k_tile = k; k_tile < k_max; ++ k_tile)
+                                *sum += a_start[k_tile] * b_start[k_tile];
+                        }
+                        res_ptr[r_tile*res_pad_col + c_tile] += sum[0] + sum[1];
+                    }
+                }
+            }
+        }
+    }
+    return res;
+}
  
 matrix operator^(const matrix& lhs, const matrix& rhs){
     return matmul(lhs, rhs);

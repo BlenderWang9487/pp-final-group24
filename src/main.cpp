@@ -41,7 +41,7 @@ auto statistic(GP::matrix& m){
 }
 
 
-void preprocess(GP::matrix& m, const GP::matrix& mu, GP::matrix& stdv){
+void preprocess(GP::matrix& m, const GP::matrix& mu, const GP::matrix& stdv){
     auto&& [row, col] = m.shape();
     for(size_t r = 0; r < row; ++ r)
         for(size_t c = 0; c < col; ++ c)
@@ -61,6 +61,8 @@ void train(){
 
     std::cout << "train data size:" << X.shape().first << '\n';
     std::cout << "test data size:" << X_test.shape().first << '\n';
+    std::cout << "preprocess mu:\n" << col_mu_X;
+    std::cout << "preprocess std:\n" << col_stdv_X;
     int g = 1, b = 1;
     for(g = 1; g < 10001; g *= 10)
     for(b = 1; b < 10001; b *= 10) // grid search
@@ -86,6 +88,10 @@ void train(){
             compare(idx, 0) = mu(idx, 0);
             compare(idx, 1) = Y_test(idx, 0);
         }
+        // std::cout << "Compare:\n" << compare;
+        // std::cout << "X:\n" << X;
+        // std::cout << "X_test:\n" << X_test;
+
     }
 }
 
@@ -126,18 +132,44 @@ void valid_matmul(){
     std::cout << "pad col " << idt.pad_column() << ", " << mat.pad_column() << '\n';
 }
 
+void matmul_bencgmark(){
+    using namespace GP::linalg;
+    std::vector<GP::matrix> mats;
+    size_t size_list[] = {1000};
+    for(auto s : size_list)
+        mats.emplace_back(randn(s, s));
+    int repeat = 5;
+
+    auto start = std::chrono::high_resolution_clock::now();
+    std::cout << "[matmul] Repeat " << repeat <<" times \n";
+    for(auto& mat : mats){
+        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        for(int i = 0; i < repeat; ++i)
+            mat = matmul(mat, mat);
+        start = print_time_spent(start);
+    }
+    std::cout << "[matmul naive] Repeat " << repeat <<" times \n";
+    for(auto& mat : mats){
+        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        for(int i = 0; i < repeat; ++i)
+            mat = matmul_naive(mat, mat);
+        start = print_time_spent(start);
+    }
+}
+
 int main(int argc, const char* argv[]){
     using namespace GP::linalg;
-    train();
+    // train();
     // linalg_benchmark();
-    // valid_matmul();
-    // GP::matrix a, b;
-    // std::cin >> a >> b;
-    // std::cout << "a:\n" << a;
-    // std::cout << "b:\n" << b;
-    // GP::GPRegression model{0.01, 2.0};
-    // model.fit(a, b);
-    // auto&& [m, v] = model.predict(a);
-    // std::cout << "m:\n" << m << "v:\n" << v;
+    valid_matmul();
+    GP::matrix a, b;
+    std::cin >> a >> b;
+    std::cout << "a:\n" << a;
+    std::cout << "b:\n" << b;
+    GP::GPRegression model{0.003, 0.010};
+    model.fit(a, b);
+    auto&& [m, v] = model.predict(a);
+    std::cout << "m:\n" << m << "v:\n" << v;
+
     return 0;
 }

@@ -9,10 +9,10 @@ target_include_directories(
     GP
     INTERFACE .
 )
-# target_compile_options(GP
-#     INTERFACE
-#    -mavx -mavx2
-# )
+target_compile_options(GP
+    INTERFACE
+   -mavx -mavx2
+)
 find_package(OpenMP)
 message(CHECK_START "Finding OpenMP...")
 if(OpenMP_CXX_FOUND)

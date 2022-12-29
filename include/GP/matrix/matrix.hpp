@@ -51,6 +51,7 @@ public:
             if(r * c == 0){
                 throw DimensionalityException();
             }
+            std::memset(buffer_.get(), 0, this->pad_size() * sizeof(double));
         }
     matrix(size_t n):
         row_{n}, col_{n}, pad_col_{aligned_size(n)}, buffer_((double*)aligned_alloc(simd_len * sizeof(double), n*aligned_size(n) * sizeof(double)), DeleteAligned())
@@ -58,6 +59,7 @@ public:
             if(n == 0){
                 throw DimensionalityException();
             }
+            std::memset(buffer_.get(), 0, this->pad_size() * sizeof(double));
         }
     matrix(const matrix& m):
         row_{m.row_}, col_{m.col_}, pad_col_{m.pad_col_}, buffer_((double*)aligned_alloc(simd_len * sizeof(double), m.row_*m.pad_col_ * sizeof(double)), DeleteAligned())
