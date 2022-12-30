@@ -135,38 +135,66 @@ void valid_matmul(){
 void matmul_benchmark(){
     using namespace GP::linalg;
     std::vector<GP::matrix> mats;
-    size_t size_list[] = {1500};
+    size_t size_list[] = {1000};
     for(auto s : size_list)
         mats.emplace_back(randn(s, s));
     int repeat = 5;
+    auto perform_bm = [&repeat](const GP::matrix& mat, auto impl){
+        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        auto cpy = mat;
+        auto start = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < repeat; ++i)
+            cpy = impl(cpy, cpy);
+        start = print_time_spent(start);
+    };
+    auto impl_list = {
+        std::pair{matmul_simd, "matmul_simd"},
+        std::pair{matmul_naive, "matmul_naive"},
+        std::pair{matmul_tile, "matmul_tile"}
+    };
+    for(auto&& [impl, impl_name] : impl_list){
+        std::cout << "[" << impl_name << "] Repeat " << repeat <<" times \n";
+        for(auto& mat : mats){
+            perform_bm(mat, impl);
+        }
+    }
+}
 
-    auto start = std::chrono::high_resolution_clock::now();
-    std::cout << "[matmul simd] Repeat " << repeat <<" times \n";
-    for(auto& mat : mats){
+void inv_benchmark(){
+    using namespace GP::linalg;
+    std::vector<GP::matrix> mats;
+    size_t size_list[] = {128, 512, 1024, 1200};
+    for(auto s : size_list)
+        mats.emplace_back(randn(s, s));
+    int repeat = 5;
+    auto perform_bm = [&repeat](const GP::matrix& mat, auto impl){
         std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
-        auto cpy = mat;
-        start = std::chrono::high_resolution_clock::now();
-        for(int i = 0; i < repeat; ++i)
-            cpy = matmul_simd(cpy, cpy);
+        auto start = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < repeat; ++i){
+            auto cpy = mat;
+            cpy = impl(cpy);
+        }
         start = print_time_spent(start);
+    };
+    auto impl_list = {
+        std::pair{inv_impl, "inv_impl"},
+        std::pair{inv_impl_simd, "inv_impl_simd"},
+    };
+    for(auto&& [impl, impl_name] : impl_list){
+        std::cout << "[" << impl_name << "] Repeat " << repeat <<" times \n";
+        for(auto& mat : mats){
+            perform_bm(mat, impl);
+        }
     }
-    std::cout << "[matmul naive] Repeat " << repeat <<" times \n";
-    for(auto& mat : mats){
-        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
-        auto cpy = mat;
-        start = std::chrono::high_resolution_clock::now();
-        for(int i = 0; i < repeat; ++i)
-            cpy = matmul_naive(cpy, cpy);
-        start = print_time_spent(start);
-    }
-    std::cout << "[matmul tile] Repeat " << repeat <<" times \n";
-    for(auto& mat : mats){
-        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
-        auto cpy = mat;
-        start = std::chrono::high_resolution_clock::now();
-        for(int i = 0; i < repeat; ++i)
-            cpy = matmul_tile(cpy, cpy);
-        start = print_time_spent(start);
+    std::cout << "inv Validation:\n";
+    for(auto&& [impl, impl_name] : impl_list){
+        std::cout << impl_name << ": ||mat ^ inv_mat - identity|| = \n";
+        auto mat = randn(100, 100);
+        auto tmp = mat;
+        auto mat_inv = impl(tmp);
+        auto dif = (mat ^ mat_inv) - identity(100);
+        dif = dif * dif;
+        std::cout << GP::utils::mean(dif) << '\n';
     }
 }
 
@@ -174,15 +202,16 @@ int main(int argc, const char* argv[]){
     using namespace GP::linalg;
     // train();
     // linalg_benchmark();
-    valid_matmul();
-    GP::matrix a, b;
-    std::cin >> a >> b;
-    std::cout << "a:\n" << a;
-    std::cout << "b:\n" << b;
-    GP::GPRegression model{0.003, 0.010};
-    model.fit(a, b);
-    auto&& [m, v] = model.predict(a);
-    std::cout << "m:\n" << m << "v:\n" << v;
-    matmul_benchmark();
+    // valid_matmul();
+    // GP::matrix a, b;
+    // std::cin >> a >> b;
+    // std::cout << "a:\n" << a;
+    // std::cout << "b:\n" << b;
+    // GP::GPRegression model{0.003, 0.010};
+    // model.fit(a, b);
+    // auto&& [m, v] = model.predict(a);
+    // std::cout << "m:\n" << m << "v:\n" << v;
+    // matmul_benchmark();
+    inv_benchmark();
     return 0;
 }
