@@ -101,6 +101,57 @@ matrix inv_impl(matrix& mat){
     }
     return inv_mat;
 }
+matrix inv_impl_simd(matrix& mat){
+    // implement Gauss-Jordan
+    auto&& [row_, col_] = mat.shape();
+    if(row_ != col_){
+        throw matrix::DimensionalityException();
+    }
+    size_t n = row_;
+    size_t n_pad = mat.pad_column();
+    auto inv_mat = identity(n);
+    double* self_ptr = mat.ptr();
+    double* inv_ptr = inv_mat.ptr();
+    for(size_t iter = 0; iter < n; ++iter){
+        // divide #iter row by matrix(iter, iter)
+        auto self_start_iter = self_ptr + iter*n_pad;
+        auto inv_start_iter = inv_ptr + iter*n_pad;
+        double val = mat(iter, iter);
+        for(size_t c = 0; c < n; ++c){
+            self_start_iter[c] /= val; inv_start_iter[c] /= val;
+        }
+
+        // row sub
+        __m256d ratio_vec;
+        for(size_t r = 0; r < n; ++r){
+            if(r == iter) continue;
+            auto self_start_r = self_ptr + r*n_pad;
+            auto inv_start_r = inv_ptr + r*n_pad;
+            double ratio = mat(r, iter);
+            ratio_vec = _mm256_set1_pd(ratio);
+            
+            size_t iter_simd_max = (iter+1)/matrix::simd_len*matrix::simd_len;
+            for(size_t c = 0; c < iter_simd_max; c += matrix::simd_len){
+                _mm256_store_pd(inv_start_r+c, _mm256_sub_pd(
+                    _mm256_load_pd(inv_start_r+c),
+                    _mm256_mul_pd(_mm256_load_pd(inv_start_iter+c), ratio_vec)));
+            }
+            for(size_t c = iter_simd_max; c <= iter; ++ c){
+                inv_start_r[c] -= inv_start_iter[c] * ratio;
+            }
+            iter_simd_max = n/matrix::simd_len*matrix::simd_len;
+            for(size_t c = iter/matrix::simd_len*matrix::simd_len; c < iter_simd_max; c += matrix::simd_len){
+                _mm256_store_pd(self_start_r+c, _mm256_sub_pd(
+                    _mm256_load_pd(self_start_r+c),
+                    _mm256_mul_pd(_mm256_load_pd(self_start_iter+c), ratio_vec)));
+            }
+            for(size_t c = iter_simd_max; c < n; ++ c){
+                self_start_r[c] -= self_start_iter[c] * ratio;
+            }
+        }
+    }
+    return inv_mat;
+}
 
 matrix inv(matrix&& m){
     matrix mat = std::forward<matrix>(m);
