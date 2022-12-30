@@ -18,6 +18,12 @@ private:
     static inline size_t aligned_size(size_t s){
         return (s + (simd_len-1))/simd_len*simd_len;
     }
+    static inline double* make_aligned_array(size_t r, size_t c, bool fill_zero = true){
+        size_t array_size = r*aligned_size(c) * sizeof(double);
+        auto ptr = aligned_alloc(simd_len * sizeof(double), array_size);
+        if(fill_zero) std::memset(ptr, 0,  array_size);
+        return (double*)ptr;
+    }
 public:
     static constexpr const size_t simd_len = 4;
     static size_t copy_count;
@@ -43,28 +49,26 @@ public:
 
     // constructor
     matrix():
-        row_{1}, col_{1}, pad_col_{4}, buffer_((double*)aligned_alloc(simd_len * sizeof(double), aligned_size(1) * sizeof(double)), DeleteAligned())
+        row_{1}, col_{1}, pad_col_{4}, buffer_(make_aligned_array(1, 1), DeleteAligned())
         {}
     matrix(size_t r, size_t c):
-        row_{r}, col_{c}, pad_col_{aligned_size(c)}, buffer_((double*)aligned_alloc(simd_len * sizeof(double), r*aligned_size(c) * sizeof(double)), DeleteAligned())
+        row_{r}, col_{c}, pad_col_{aligned_size(c)}, buffer_(make_aligned_array(r, c), DeleteAligned())
         {
             if(r * c == 0){
                 throw DimensionalityException();
             }
-            std::memset(buffer_.get(), 0, this->pad_size() * sizeof(double));
         }
     matrix(size_t n):
-        row_{n}, col_{n}, pad_col_{aligned_size(n)}, buffer_((double*)aligned_alloc(simd_len * sizeof(double), n*aligned_size(n) * sizeof(double)), DeleteAligned())
+        row_{n}, col_{n}, pad_col_{aligned_size(n)}, buffer_(make_aligned_array(n, n), DeleteAligned())
         {
             if(n == 0){
                 throw DimensionalityException();
             }
-            std::memset(buffer_.get(), 0, this->pad_size() * sizeof(double));
         }
     matrix(const matrix& m):
-        row_{m.row_}, col_{m.col_}, pad_col_{m.pad_col_}, buffer_((double*)aligned_alloc(simd_len * sizeof(double), m.row_*m.pad_col_ * sizeof(double)), DeleteAligned())
+        row_{m.row_}, col_{m.col_}, pad_col_{m.pad_col_}, buffer_(make_aligned_array(m.row_, m.col_, false), DeleteAligned())
     {
-        size_t buffer_size = row_*pad_col_;
+        size_t buffer_size = this->pad_size();
         std::memcpy(
             buffer_.get(),
             m.buffer_.get(),
@@ -78,8 +82,8 @@ public:
     // assign
     matrix& operator=(const matrix& m){
         row_ = m.row_; col_ = m.col_; pad_col_ = m.pad_col_;
-        size_t buffer_size = row_*pad_col_;
-        buffer_.reset((double*)aligned_alloc(simd_len * sizeof(double), buffer_size * sizeof(double)), DeleteAligned());
+        size_t buffer_size = this->pad_size();
+        buffer_.reset(make_aligned_array(row_, col_, false), DeleteAligned());
         std::memcpy(
             buffer_.get(),
             m.buffer_.get(),

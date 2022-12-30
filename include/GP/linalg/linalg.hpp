@@ -129,7 +129,6 @@ matrix matmul_tile(const matrix& a, const matrix& _b){
     double* a_ptr = a.ptr();
     double* b_ptr = b.ptr();
     double* res_ptr = res.ptr();
-    // #pragma omp parallel for num_threads(8)
     for(size_t r = 0; r < row; r += cache_size){
         size_t r_max = std::min(r + cache_size, row);
         for(size_t c = 0; c < col; c += cache_size){
@@ -167,7 +166,6 @@ matrix matmul_naive(const matrix& a, const matrix& _b){
     double* a_ptr = a.ptr();
     double* b_ptr = b.ptr();
     double* res_ptr = res.ptr();
-    // #pragma omp parallel for num_threads(8)
     for(size_t r = 0; r < row; ++r){
         for(size_t c = 0; c < col; ++c){
             double sum{};
@@ -204,7 +202,6 @@ matrix matmul_simd(const matrix& a, const matrix& _b){
     double* b_ptr = b.ptr();
     double* res_ptr = res.ptr();
     double sum;
-    // #pragma omp parallel for num_threads(8)
     for(size_t r = 0; r < row; r += cache_size){
         size_t r_max = std::min(r + cache_size, row);
         for(size_t c = 0; c < col; c += cache_size){
