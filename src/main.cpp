@@ -150,7 +150,8 @@ void matmul_benchmark(){
     auto impl_list = {
         std::pair{matmul_simd, "matmul_simd"},
         std::pair{matmul_naive, "matmul_naive"},
-        std::pair{matmul_tile, "matmul_tile"}
+        std::pair{matmul_tile, "matmul_tile"},
+        std::pair{matmul_simd2, "matmul_simd2"}
     };
     for(auto&& [impl, impl_name] : impl_list){
         std::cout << "[" << impl_name << "] Repeat " << repeat <<" times \n";
@@ -197,6 +198,35 @@ void inv_benchmark(){
         std::cout << GP::utils::mean(dif) << '\n';
     }
 }
+void kernel_benchmark(){
+    using namespace GP::linalg;
+    std::vector<GP::matrix> mats;
+    size_t size_list[] = {128, 512, 1024, 1200};
+    for(auto s : size_list)
+        mats.emplace_back(randn(s, s));
+    int repeat = 1;
+    auto perform_bm = [&repeat](const GP::matrix& mat, GP::GPRegression& model){
+        std::cout << "[serial] Repeat " << repeat <<" times \n";
+        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        auto start = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < repeat; ++i){
+            model.rbf_kernel_(mat, mat);
+        }
+        start = print_time_spent(start);
+        std::cout << "[simd] Repeat " << repeat <<" times \n";
+        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        for(int i = 0; i < repeat; ++i){
+            model.rbf_kernel_simd_(mat, mat);
+        }
+        start = print_time_spent(start);
+    };
+    GP::GPRegression model;
+    for(auto& mat : mats){
+        perform_bm(mat, model);
+    }
+}
+
+
 
 int main(int argc, const char* argv[]){
     using namespace GP::linalg;
@@ -211,7 +241,8 @@ int main(int argc, const char* argv[]){
     // model.fit(a, b);
     // auto&& [m, v] = model.predict(a);
     // std::cout << "m:\n" << m << "v:\n" << v;
-    // matmul_benchmark();
+    matmul_benchmark();
     inv_benchmark();
+    kernel_benchmark();
     return 0;
 }

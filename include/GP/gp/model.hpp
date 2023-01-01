@@ -12,8 +12,9 @@ private:
     matrix C_inv_, X_, Y_;
     double gamma_;
     double beta_;
-    matrix rbf_kernel_(const matrix&, const matrix&);
 public:
+    matrix rbf_kernel_(const matrix&, const matrix&);
+    matrix rbf_kernel_simd_(const matrix&, const matrix&);
     GPRegression(double g = 0.1, double b = double{1}):
         C_inv_{}, X_{}, Y_{}, gamma_{g}, beta_{b} {}
     void fit(const matrix& X, const matrix& Y){
@@ -58,6 +59,34 @@ matrix GPRegression::rbf_kernel_(const matrix& X1, const matrix& X2){
             double dot_product = std::inner_product(
                 vec_dif.begin(), vec_dif.end(), vec_dif.begin(), double{});
             kernel(r, c) = std::exp(-gamma_*dot_product);
+        }
+    }
+    return kernel;
+}
+
+matrix GPRegression::rbf_kernel_simd_(const matrix& X1, const matrix& X2){
+    using namespace GP::linalg;
+    auto&& [n1, feats1] = X1.shape();
+    auto&& [n2, feats2] = X2.shape();
+    if(feats1 != feats2){
+        throw matrix::DimensionalityException();
+    }
+    size_t pad_feature = X1.pad_column();
+    auto x1_ptr = X1.ptr();
+    auto x2_ptr = X2.ptr();
+    matrix kernel(n1, n2);
+    auto k_ptr = kernel.ptr();
+    for(size_t r = 0; r < n1; ++r){
+        auto x1_start = x1_ptr + r*pad_feature;
+        auto k_start = k_ptr + r*kernel.pad_column();
+        for(size_t c = 0; c < n2; ++c){
+            auto x2_start = x2_ptr + c*pad_feature;
+            std::vector<double> vec_dif(feats1);
+            for(size_t k = 0; k < feats1; ++k)
+                vec_dif[k] = x1_start[k] - x2_start[k];
+            double dot_product = std::inner_product(
+                vec_dif.begin(), vec_dif.end(), vec_dif.begin(), double{});
+            k_start[c] = std::exp(-gamma_*dot_product);
         }
     }
     return kernel;
