@@ -266,15 +266,14 @@ __m256d double16_hadd(double* a_start, double* b_start){
 }
 inline
 __m256d double4row_hadd(double* a_start, double* b_start, size_t pad_col_ab, const int imm8){
-    auto a_vec = _mm256_load_pd(a_start);
     return _mm256_permute4x64_pd(_mm256_hadd_pd(
             _mm256_permute4x64_pd(_mm256_hadd_pd(
-                _mm256_mul_pd(a_vec, _mm256_load_pd(b_start)),
-                _mm256_mul_pd(a_vec, _mm256_load_pd(b_start + pad_col_ab))
+                double16_hadd(a_start, b_start),
+                double16_hadd(a_start, b_start + pad_col_ab)
             ), imm8),
             _mm256_permute4x64_pd(_mm256_hadd_pd(
-                _mm256_mul_pd(a_vec, _mm256_load_pd(b_start + pad_col_ab*2)),
-                _mm256_mul_pd(a_vec, _mm256_load_pd(b_start + pad_col_ab*3))
+                double16_hadd(a_start, b_start + pad_col_ab*2),
+                double16_hadd(a_start, b_start + pad_col_ab*3)
             ), imm8)
         ), imm8);
 }
@@ -327,8 +326,7 @@ matrix matmul_simd2(const matrix& a, const matrix& _b){
         throw matrix::DimensionalityException();
     }
     auto b = transpose(_b);
-    const size_t cache_size = 4;
-    // const size_t cache_size = MY_GP_CACHE_LINESIZE / sizeof(double);
+    const size_t cache_size = MY_GP_CACHE_LINESIZE / sizeof(double);
     auto row = lrow, col = rcol, pad_inter_col = a.pad_column();
     matrix res{row, col};
     auto res_pad_col = res.pad_column();
@@ -350,11 +348,12 @@ matrix matmul_simd2(const matrix& a, const matrix& _b){
                     auto a_start = a_ptr + r_tile*pad_inter_col + k;
                     auto res_start = res_ptr + r_tile*res_pad_col;
                     if(n_c == cache_size && n == cache_size){
-                        _mm256_store_pd(
-                            res_start + c, _mm256_add_pd(
-                                _mm256_load_pd(res_start + c),
-                                double4row_hadd(a_start, b_ptr + c*pad_inter_col + k, pad_inter_col, shuffle)
-                            ));
+                        for(size_t c_tile = c; c_tile < c_max; c_tile += 4)
+                            _mm256_store_pd(
+                                res_start + c_tile, _mm256_add_pd(
+                                    _mm256_load_pd(res_start + c_tile),
+                                    double4row_hadd(a_start, b_ptr + c_tile*pad_inter_col + k, pad_inter_col, shuffle)
+                                ));
                     }
                     else{
                         for(size_t c_tile = c; c_tile < c_max; ++ c_tile){
