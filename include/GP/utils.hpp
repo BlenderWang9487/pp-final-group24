@@ -1,5 +1,6 @@
 #pragma once
 #include <matrix/matrix.hpp>
+#include <chrono>
 
 namespace GP{
 
@@ -18,6 +19,16 @@ double sum(const matrix& m){
 
 double mean(const matrix& m){
     return sum(m) / m.size();
+}
+
+auto print_time_spent(std::chrono::high_resolution_clock::time_point start_time){
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = end_time - start_time;
+    std::cout << "Time spent: " 
+        << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
+        << " (ms)"
+        << std::endl;
+    return end_time;
 }
 
 }

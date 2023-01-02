@@ -6,16 +6,6 @@
 #include <chrono>
 #include <cmath>
 
-auto print_time_spent(std::chrono::high_resolution_clock::time_point start_time){
-    auto end_time = std::chrono::high_resolution_clock::now();
-    auto duration = end_time - start_time;
-    std::cout << "Time spent: " 
-        << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count()
-        << " (ms)"
-        << std::endl;
-    return end_time;
-}
-
 auto statistic(GP::matrix& m){
     auto&& [row, col] = m.shape();
 
@@ -74,10 +64,10 @@ void train(){
         auto start = std::chrono::high_resolution_clock::now();
         model.fit(X, Y);
         std::cout << "[Fit] ";
-        start = print_time_spent(start);
+        start = GP::utils::print_time_spent(start);
         auto&& [mu, var] = model.predict(X_test);
         std::cout << "[Predict] ";
-        start = print_time_spent(start);
+        start = GP::utils::print_time_spent(start);
 
         // mse 
         auto diff = (mu - Y_test);
@@ -109,14 +99,14 @@ void linalg_benchmark(){
         std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
         for(int i = 0; i < repeat; ++i)
             mat ^= mat;
-        start = print_time_spent(start);
+        start = GP::utils::print_time_spent(start);
     }
     std::cout << "[inv] Repeat " << repeat <<" times \n";
     for(auto& mat : mats){
         std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
         for(int i = 0; i < repeat; ++i)
             mat = ~mat;
-        start = print_time_spent(start);
+        start = GP::utils::print_time_spent(start);
     }
 }
 
@@ -145,7 +135,7 @@ void matmul_benchmark(){
         auto start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < repeat; ++i)
             cpy = impl(cpy, cpy);
-        start = print_time_spent(start);
+        start = GP::utils::print_time_spent(start);
     };
     auto impl_list = {
         std::pair{matmul_simd, "matmul_simd"},
@@ -175,7 +165,7 @@ void inv_benchmark(){
             auto cpy = mat;
             cpy = impl(cpy);
         }
-        start = print_time_spent(start);
+        start = GP::utils::print_time_spent(start);
     };
     auto impl_list = {
         std::pair{inv_impl, "inv_impl"},
@@ -201,28 +191,31 @@ void inv_benchmark(){
 void kernel_benchmark(){
     using namespace GP::linalg;
     std::vector<GP::matrix> mats;
-    size_t size_list[] = {128, 512, 1024, 1200};
-    for(auto s : size_list)
-        mats.emplace_back(randn(s, s));
-    int repeat = 1;
-    auto perform_bm = [&repeat](const GP::matrix& mat, GP::GPRegression& model){
+    size_t size_list[] = {128, 512, 1024, 1200, 2000};
+    int repeat = 5;
+    size_t feat = 123;
+    auto perform_bm = [&repeat, &feat](const size_t size_x, GP::GPRegression& model){
         std::cout << "[serial] Repeat " << repeat <<" times \n";
-        std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
+        std::cout << "Matirx "<< size_x << "x" << feat << " - ";
+        auto mat = randn(size_x, feat);
+        GP::matrix res, res_simd;
         auto start = std::chrono::high_resolution_clock::now();
         for(int i = 0; i < repeat; ++i){
-            model.rbf_kernel_(mat, mat);
+            res = model.rbf_kernel_naive_(mat, mat);
         }
-        start = print_time_spent(start);
+        start = GP::utils::print_time_spent(start);
         std::cout << "[simd] Repeat " << repeat <<" times \n";
         std::cout << "Matirx "<< mat.shape(0) << "x" << mat.shape(1) << " - ";
         for(int i = 0; i < repeat; ++i){
-            model.rbf_kernel_simd_(mat, mat);
+            res_simd = model.rbf_kernel_simd_(mat, mat);
         }
-        start = print_time_spent(start);
+        start = GP::utils::print_time_spent(start);
+        auto dif = res - res_simd;
+        std::cout << "Naive vs SIMD: " << GP::utils::mean(dif * dif) << '\n';
     };
     GP::GPRegression model;
-    for(auto& mat : mats){
-        perform_bm(mat, model);
+    for(auto& size_x : size_list){
+        perform_bm(size_x, model);
     }
 }
 

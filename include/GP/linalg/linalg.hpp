@@ -128,13 +128,12 @@ matrix inv_impl_simd(matrix& mat){
         }
 
         // row sub
-        __m256d ratio_vec;
         for(size_t r = 0; r < n; ++r){
             if(r == iter) continue;
             auto self_start_r = self_ptr + r*n_pad;
             auto inv_start_r = inv_ptr + r*n_pad;
             double ratio = mat(r, iter);
-            ratio_vec = _mm256_set1_pd(ratio);
+            __m256d ratio_vec = _mm256_set1_pd(ratio);
             
             size_t iter_simd_max = (iter+1)/matrix::simd_len*matrix::simd_len;
             for(size_t c = 0; c < iter_simd_max; c += matrix::simd_len){
@@ -330,7 +329,7 @@ matrix matmul_simd2(const matrix& a, const matrix& _b){
     auto row = lrow, col = rcol, pad_inter_col = a.pad_column();
     matrix res{row, col};
     auto res_pad_col = res.pad_column();
-    auto shuffle = _MM_SHUFFLE(3,1,2,0);
+    constexpr auto shuffle = _MM_SHUFFLE(3,1,2,0);
 
     // things go lil bit nasty
     double* a_ptr = a.ptr();
