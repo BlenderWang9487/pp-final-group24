@@ -157,6 +157,79 @@ matrix inv_impl_simd(matrix& mat){
     }
     return inv_mat;
 }
+matrix inv_impl_lu(GP::matrix& a)
+{
+    auto&& [row_, col_] = a.shape();
+    if(row_ != col_){
+        throw matrix::DimensionalityException();
+    }
+    size_t n = row_;
+    GP::matrix L{n};
+    GP::matrix U{n};
+    GP::matrix Inverse{n};
+
+    for (int i = 0; i < n; ++i)
+    {
+        // Calculate the U matrix
+        for (int k = i; k < n; ++k)
+        {
+            // Summation of L[i][j] * U[j][k]
+            double sum = 0;
+            for (int j = 0; j < i; ++j)
+                sum += (L(i, j) * U(j, k));
+
+            // Evaluating U[i][k]
+            U(i, k) = a(i, k) - sum;
+        }
+
+        // Calculate the L matrix
+        for (int k = i; k < n; ++k)
+        {
+            if (i == k)
+                L(i, i) = 1; // Diagonal as 1
+            else
+            {
+                // Summation of L[k][j] * U[j][i]
+                double sum = 0;
+                for (int j = 0; j < i; ++j)
+                    sum += (L(k, j) * U(j, i));
+
+                // Evaluating L[k][i]
+                L(k, i) = (a(k, i) - sum) / U(i, i);
+            }
+        }
+    }
+
+    // solve
+    double* x = new double[n];
+    for (int i = 0; i < n; ++i)
+    {
+        // Find the solution for each column of the identity matrix
+        double* y = new double[n]{};
+        y[i] = 1;
+
+        // Solve Lx = y using forward substitution
+        for (int j = 0; j < n; ++j)
+        {
+            double sum = 0;
+            for (int k = 0; k < j; ++k)
+                sum += (L(j, k) * x[k]);
+            x[j] = (y[j] - sum) / L(j, j);
+        }
+
+        // Solve Ux = y using backward substitution
+        for (int j = n - 1; j >= 0; --j)
+        {
+            double sum = 0;
+            for (int k = j + 1; k < n; ++k)
+                sum += (U(j, k) * Inverse(k, i));
+            Inverse(j, i) = (x[j] - sum) / U(j, j);
+        }
+        delete [] y;
+    }
+    delete [] x;
+    return Inverse;
+}
 
 matrix inv(matrix&& m){
     matrix mat = std::forward<matrix>(m);
